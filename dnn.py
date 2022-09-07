@@ -5,7 +5,7 @@ from tensorflow import keras
 from tensorflow.python.keras import layers
 
 
-def build_and_compile_model(batch_size, num_features):
+def build_and_compile_model(num_features):
     model = keras.Sequential([
         layers.Dense(64, activation='relu'),
         layers.Dense(32, activation='relu'),
@@ -30,7 +30,7 @@ def plot_loss(history):
     plt.show()
 
 
-def train_linear_model():
+def train_model():
     dataset = pd.read_csv('data/mel_spectrogram.csv')[:]
 
     dataset.drop(['track_id', 'Unnamed: 0'], axis=1, inplace=True)
@@ -47,9 +47,7 @@ def train_linear_model():
     BATCH_SIZE = 256
     NUM_FEATURES = train_features.shape[1]
 
-    model = build_and_compile_model(BATCH_SIZE, NUM_FEATURES)
-
-    #print(linear_model.predict(train_features[:10]))
+    model = build_and_compile_model(NUM_FEATURES)
 
     print(model.summary())
 
@@ -77,4 +75,4 @@ def train_linear_model():
 
 
 if __name__ == "__main__":
-    train_linear_model()
+    train_model()
