@@ -7,9 +7,9 @@ from tensorflow.python.keras import layers
 
 def build_and_compile_model(num_features):
     model = keras.Sequential([
-        layers.Dense(64, activation='relu'),
-        layers.Dense(32, activation='relu'),
-        layers.Dense(16, activation='relu'),
+        layers.Dense(num_features, activation='relu'),
+        layers.Dense(num_features/2, activation='relu'),
+        layers.Dense(num_features/3, activation='relu'),
         layers.Dense(1, activation='sigmoid')
     ])
 
@@ -31,7 +31,7 @@ def plot_loss(history):
 
 
 def train_model():
-    dataset = pd.read_csv('data/mel_spectrogram.csv')[:]
+    dataset = pd.read_csv('data/mel_spectrogram.csv')[:10000]
 
     dataset.drop(['track_id', 'Unnamed: 0'], axis=1, inplace=True)
 
