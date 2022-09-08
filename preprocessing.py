@@ -30,15 +30,17 @@ chroma_columns = [f"Chroma_{i}" for i in range(1, num_chroma_cols+1)]
 tonnetz_columns = [f"Tonnetz_{i}" for i in range(1, num_tonnetz_cols+1)]
 mel_columns = [f"MEL_{i}" for i in range(1, num_mel_cols+1)]
 
-def create_abt(tracks_data_set, low_level_features_df, feature_columns: list):
+
+def create_abt(tracks_data_set, low_level_features_df, feature_cols: list):
     tracks_data_set.drop(['_id', 'name', 'preview_url', 'release_date', 'uuid'], axis=1, inplace=True)
     tracks_data_set = tracks_data_set.rename(columns={'spotify_id': 'track_id'})
 
-    feature_columns.append('track_id')
-    low_level_features_df = low_level_features_df[feature_columns]
+    feature_cols.append('track_id')
+    low_level_features_df = low_level_features_df[feature_cols]
 
     merged = pd.merge(tracks_data_set, low_level_features_df, how='inner', on='track_id')
     return merged
+
 
 def read_original_dataset():
     df = pd.read_csv('data/spotify_tracks.csv')
@@ -178,16 +180,25 @@ def collect_data_set_with_streams():
     spotgen_df = remove_tracks_with_high_speechiness(spotgen_df, threshold=0.66)
     create_new_dataset_mongodb(spotgen_df)
 
-feature_columns = {
-    'chromagram': chroma_columns,
-    'tonnetz': tonnetz_columns,
-    'mel_spectrogram': mel_columns,
-}
 
-for feature_name, feature_columns in feature_columns.items():
+if __name__ == "__main__":
+    feature_columns = {
+        'chromagram': chroma_columns,
+        'tonnetz': tonnetz_columns,
+        'mel_spectrogram': mel_columns,
+    }
+
+    # for feature_name, feature_columns in feature_columns.items():
+    #     features = pd.read_csv('data/low_level_audio_features.csv')
+    #     tracks = pd.read_csv('data/tracks_with_streams.csv')
+    #     abt = create_abt(tracks, features, feature_columns)
+    #     print(abt.shape)
+    #     print(abt.head())
+    #     abt.to_csv(f"data/{feature_name}.csv")
+
     features = pd.read_csv('data/low_level_audio_features.csv')
     tracks = pd.read_csv('data/tracks_with_streams.csv')
-    abt = create_abt(tracks, features, feature_columns)
+    abt = create_abt(tracks, features, chroma_columns + tonnetz_columns + mel_columns)
     print(abt.shape)
     print(abt.head())
-    abt.to_csv(f"data/{feature_name}.csv")
+    abt.to_csv(f"data/mel_spec-tonnetz-chromagram.csv")
