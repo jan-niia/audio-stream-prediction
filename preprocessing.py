@@ -196,9 +196,13 @@ if __name__ == "__main__":
     #     print(abt.head())
     #     abt.to_csv(f"data/{feature_name}.csv")
 
-    features = pd.read_csv('data/low_level_audio_features.csv')
-    tracks = pd.read_csv('data/tracks_with_streams.csv')
-    abt = create_abt(tracks, features, chroma_columns + tonnetz_columns + mel_columns)
-    print(abt.shape)
-    print(abt.head())
-    abt.to_csv(f"data/mel_spec-tonnetz-chromagram.csv")
+    # features = pd.read_csv('data/low_level_audio_features.csv')
+    # tracks = pd.read_csv('data/tracks_with_streams.csv')
+    # abt = create_abt(tracks, features, chroma_columns + tonnetz_columns + mel_columns)
+    # print(abt.shape)
+    # print(abt.head())
+    # abt.to_csv(f"data/mel_spec-tonnetz-chromagram.csv")
+
+    # download_sample(
+    #     "https://p.scdn.co/mp3-preview/95cb9df1b056d759920b5e85ad7f9aff0a390671?cid=b3cdb16d0df2409abf6a8f6c2f6c2e0c",
+    #     "The Scientist")

@@ -19,7 +19,7 @@ def build_and_compile_model(num_features, train_features):
         layers.Dense(1)
     ])
 
-    model.compile(loss='mae', optimizer=tf.keras.optimizers.Adam(0.01))
+    model.compile(loss='mae', optimizer=tf.keras.optimizers.Adam(0.001))
     model.build(input_shape=(None, num_features))
     return model
 
@@ -105,12 +105,44 @@ def create_dataset_with_random_streams():
     return pd.DataFrame(data=d)
 
 
+def replace_features_with_random_data(dataset: pd.DataFrame):
+    from random import randrange, uniform
+
+    max_value = dataset.drop("streams", axis=1).max().max()
+    min_value = dataset.drop("streams", axis=1).min().min()
+
+    print(max_value)
+    print(min_value)
+
+    num_rows, num_cols = dataset.shape
+
+    d = {
+        'streams': dataset['streams']
+    }
+    for i in range(num_cols):
+        d[f"feat_{i}"] = [uniform(min_value, max_value) for i in range(num_rows)]
+
+    return pd.DataFrame(data=d)
+
+
 if __name__ == "__main__":
 
-    features = ['mel_spectrogram', 'tonnetz', 'chromagram', 'mel_spec-tonnetz-chromagram']
+    features = ['mel_spectrogram', 'mel_spec-tonnetz-chromagram']#, 'tonnetz', 'chromagram', ]
 
     for feature in features:
         df = pd.read_csv(f"data/{feature}.csv")[:]
         df.drop(['track_id', 'Unnamed: 0'], axis=1, inplace=True)
 
+        print(df.describe().apply(lambda s: s.apply('{0:.5f}'.format)))
+
         train_model(df, feature)
+
+
+    # df = pd.read_csv(f"data/{features[0]}.csv")[:]
+    # df.drop(['track_id', 'Unnamed: 0'], axis=1, inplace=True)
+    #
+    # df = replace_features_with_random_data(df)
+    #
+    # print(df.head())
+    #
+    # train_model(df, f'{features[0]}-random')
