@@ -1,10 +1,16 @@
 import json
 import os
 import subprocess
+import pickle
+from os.path import exists
+
+import librosa
 import pandas as pd
 import requests
 import configparser
 from datetime import timedelta, datetime
+
+from bson import Binary
 
 from database import get_tracks_collection
 
@@ -181,6 +187,51 @@ def collect_data_set_with_streams():
     create_new_dataset_mongodb(spotgen_df)
 
 
+def calculate_and_store_melspec(track):
+    try:
+        y, sr = librosa.load(f"audio/{track.get('uuid')}.mp3")
+
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128,
+                                           fmax=8000)
+
+        pickled_array = Binary(pickle.dumps(S, protocol=2), subtype=128)
+
+        add_field_to_track(track.get("_id"), "melspec", pickled_array)
+    except Exception:
+        print(f"Could not load file {track.get('name')} with uuid {track.get('uuid')}")
+
+
+def add_field_to_track(track_id, field_name, value):
+    get_tracks_collection().update_one({'_id': track_id}, {"$set": {field_name: value}})
+
+
+def download_samples(num_samples=None):
+    tracks_collection = get_tracks_from_db().find({'melspec': {"$exists": False}})
+
+    if num_samples:
+        tracks_collection = tracks_collection.limit(num_samples)
+
+    for t in tracks_collection:
+        print(f"Track: {t.get('name'), t.get('streams'), t.get('preview_url')}")
+        #print(pickle.loads(t.get('melspec')))
+
+        if exists(f"audio/{t.get('uuid')}.mp3"):
+            continue
+
+        download_sample(t.get('preview_url'), t.get('uuid'))
+
+
+def get_tracks_from_db():
+    return get_tracks_collection().find({"message": {"$ne": "no streams"}}, {
+        "name": 0,
+        "spotify_id": 0,
+        "preview_url": 0,
+        "uuid": 0,
+        "message": 0,
+        "release_date": 0
+    })
+
+
 if __name__ == "__main__":
     feature_columns = {
         'chromagram': chroma_columns,
@@ -206,3 +257,12 @@ if __name__ == "__main__":
     # download_sample(
     #     "https://p.scdn.co/mp3-preview/95cb9df1b056d759920b5e85ad7f9aff0a390671?cid=b3cdb16d0df2409abf6a8f6c2f6c2e0c",
     #     "The Scientist")
+
+    tracks = get_tracks_collection()
+    pool = ThreadPool(8)
+
+    pool.map(calculate_and_store_melspec, tracks.find({"message": {"$ne": "no streams"}, 'melspec': {"$exists": False}})
+             .limit(900))
+
+
+

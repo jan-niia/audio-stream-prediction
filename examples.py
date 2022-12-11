@@ -5,8 +5,11 @@ import matplotlib.pyplot as plt
 import librosa.display
 import numpy as np
 
+from database import get_tracks_collection
+
 np.set_printoptions(linewidth=500)
 np.set_printoptions(threshold=sys.maxsize)
+
 
 def apply_stat(value, stat='mean'):
     if stat == 'mean':
@@ -95,7 +98,6 @@ def main():
     #
     # ax.set(title='Waveform')
     # plt.show()
-
 
     #chromagram(y, sr)
     #tonnetz(y, sr)
