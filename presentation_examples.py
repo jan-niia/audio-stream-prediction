@@ -20,17 +20,17 @@ def apply_stat(value, stat='mean'):
 
 
 def repeat_2d(array_to_repeat, original_size: int):
-    return np.repeat(array_to_repeat, repeats=original_size).reshape(original_size, -1)
+    return np.repeat(array_to_repeat, repeats=original_size).reshape(-1, original_size)
 
 
 def calc_avg(feature):
     return np.array([apply_stat(feature[k], 'mean') for k in range(len(feature))])
 
 
-def plot_feature(feature, y_axis, title):
+def plot_feature(feature, y_axis, title, hop_length):
     fig, ax = plt.subplots()
 
-    img = librosa.display.specshow(feature, y_axis=y_axis, x_axis='time', ax=ax)
+    img = librosa.display.specshow(feature, y_axis=y_axis, x_axis='time', ax=ax, hop_length=hop_length)
 
     ax.set(title=title)
 
@@ -54,22 +54,24 @@ def chromagram(y, sr):
     plot_feature(chroma_cq_sum, title='chroma_cqt \"summarized\"', y_axis='chroma')
 
 
-def tonnetz(y, sr):
+def tonnetz(y, sr, hop_length=512):
     y = librosa.effects.harmonic(y)
-    tonnetz = librosa.feature.tonnetz(y=y, sr=sr)
-    print(tonnetz)
-    plot_feature(tonnetz, title='Tonal Centroids (Tonnetz)', y_axis='tonnetz')
+    tonnetz = librosa.feature.tonnetz(y=y, sr=sr, hop_length=hop_length)
+    print(tonnetz.shape)
+    plot_feature(tonnetz, title='Tonal Centroids (Tonnetz)', y_axis='tonnetz', hop_length=hop_length)
 
     tonnetz_sum = calc_avg(tonnetz)
-    tonnetz_sum = repeat_2d(tonnetz_sum, len(tonnetz))
+    tonnetz_sum = repeat_2d(tonnetz_sum, tonnetz.shape[1])
 
-    plot_feature(tonnetz_sum, title='Tonal Centroids (Tonnetz) \"summarized\"', y_axis='tonnetz')
+    print(tonnetz_sum.shape)
+
+    plot_feature(tonnetz_sum, title='Tonal Centroids (Tonnetz) \"summarized\"', y_axis='tonnetz', hop_length=hop_length)
 
 
-def plot_melspec(S, sr, title):
+def plot_melspec(S, sr, title, hop_length):
     fig, ax = plt.subplots()
     S_dB = librosa.power_to_db(S, ref=np.max)
-    img = librosa.display.specshow(S_dB, x_axis='time',
+    img = librosa.display.specshow(S_dB, x_axis='time', hop_length=hop_length,
                                    y_axis='mel', sr=sr,
                                    fmax=8000, ax=ax)
     fig.colorbar(img, ax=ax, format='%+2.0f dB')
@@ -77,21 +79,23 @@ def plot_melspec(S, sr, title):
     plt.show()
 
 
-def melspec(y, sr):
-    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128,
+def melspec(y, sr, hop_length=512):
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=hop_length,
                                        fmax=8000)
-    print(S)
+    print(S.shape)
 
-    plot_melspec(S, sr, title='Mel-frequency spectrogram')
+    plot_melspec(S, sr, title='Mel-frequency spectrogram', hop_length=hop_length)
 
     Ssum = calc_avg(S)
-    Ssum = repeat_2d(Ssum, len(S))
+    Ssum = repeat_2d(Ssum, S.shape[1])
 
-    plot_melspec(Ssum, sr, title='Mel-frequency spectrogram \"summarized\"')
+    print(Ssum.shape)
+
+    plot_melspec(Ssum, sr, title='Mel-frequency spectrogram \"summarized\"', hop_length=hop_length)
 
 
 def main():
-    y, sr = librosa.load("audio/The Scientist.mp3")
+    y, sr = librosa.load("audio/0bc37e36-26e2-47f1-a600-06f48b94ea82.mp3") #("audio/The Scientist.mp3")
 
     # fig, ax = plt.subplots()
     # librosa.display.waveshow(y, sr=sr, ax=ax)
@@ -100,8 +104,8 @@ def main():
     # plt.show()
 
     #chromagram(y, sr)
-    #tonnetz(y, sr)
-    #melspec(y, sr)
+    tonnetz(y, sr, hop_length=2048)
+    #melspec(y, sr, hop_length=4096)
 
 
 if __name__ == "__main__":

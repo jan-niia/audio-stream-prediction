@@ -1,7 +1,9 @@
 import json
+import math
 import os
 import subprocess
 import pickle
+import sys
 from os.path import exists
 
 import librosa
@@ -187,18 +189,52 @@ def collect_data_set_with_streams():
     create_new_dataset_mongodb(spotgen_df)
 
 
+def calculate_output_shape(sr, hop_length, feature: str, sample_length_in_seconds=30):
+    num_values = math.ceil((sr * sample_length_in_seconds) / hop_length)
+    feature_column_map = dict(melspec=128, tonnetz=6)
+    return feature_column_map[feature], num_values
+
+
 def calculate_and_store_melspec(track):
+    hop_length = 2048
+    file_path = f"audio/{track.get('uuid')}.mp3"
     try:
         y, sr = librosa.load(f"audio/{track.get('uuid')}.mp3")
 
         S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128,
-                                           fmax=8000)
+                                           fmax=8000, hop_length=hop_length)
+
+        if S.shape != calculate_output_shape(sr=sr, hop_length=hop_length, feature='melspec'):
+            print("Melspec output was not of correct size. Skipping track...")
+            print(calculate_output_shape(sr=sr, hop_length=hop_length, feature='melspec'))
+            return
 
         pickled_array = Binary(pickle.dumps(S, protocol=2), subtype=128)
 
         add_field_to_track(track.get("_id"), "melspec", pickled_array)
     except Exception:
-        print(f"Could not load file {track.get('name')} with uuid {track.get('uuid')}")
+        print(f"Could not load file {track.get('name')} with path {file_path}")
+
+
+def calculate_and_store_tonnetz(track):
+    hop_length = 2048
+    file_path = f"audio/{track.get('uuid')}.mp3"
+    print(file_path)
+    try:
+        y, sr = librosa.load(file_path)
+
+        S = librosa.feature.tonnetz(y=y, sr=sr, hop_length=hop_length)
+
+        if S.shape != calculate_output_shape(sr=sr, hop_length=hop_length, feature='tonnetz'):
+            print("Tonnets output was not of correct size. Skipping track...")
+            print(calculate_output_shape(sr=sr, hop_length=hop_length, feature='tonnetz'))
+            return
+
+        pickled_array = Binary(pickle.dumps(S, protocol=2), subtype=128)
+
+        add_field_to_track(track.get("_id"), "tonnetz", pickled_array)
+    except Exception as e:
+        print(f"Could not load file {track.get('name')} with path {file_path} because {e}")
 
 
 def add_field_to_track(track_id, field_name, value):
@@ -206,7 +242,7 @@ def add_field_to_track(track_id, field_name, value):
 
 
 def download_samples(num_samples=None):
-    tracks_collection = get_tracks_from_db().find({'melspec': {"$exists": False}})
+    tracks_collection = get_tracks_collection().find({'melspec': {"$exists": False}})
 
     if num_samples:
         tracks_collection = tracks_collection.limit(num_samples)
@@ -221,8 +257,11 @@ def download_samples(num_samples=None):
         download_sample(t.get('preview_url'), t.get('uuid'))
 
 
-def get_tracks_from_db():
-    return get_tracks_collection().find({"message": {"$ne": "no streams"}}, {
+def get_tracks_from_db(feature: str):
+    return get_tracks_collection().find({"message": {"$ne": "no streams"},
+                                         feature: {"$exists": True}},
+                                        {
+
         "name": 0,
         "spotify_id": 0,
         "preview_url": 0,
@@ -239,30 +278,32 @@ if __name__ == "__main__":
         'mel_spectrogram': mel_columns,
     }
 
-    # for feature_name, feature_columns in feature_columns.items():
-    #     features = pd.read_csv('data/low_level_audio_features.csv')
-    #     tracks = pd.read_csv('data/tracks_with_streams.csv')
-    #     abt = create_abt(tracks, features, feature_columns)
-    #     print(abt.shape)
-    #     print(abt.head())
-    #     abt.to_csv(f"data/{feature_name}.csv")
-
-    # features = pd.read_csv('data/low_level_audio_features.csv')
-    # tracks = pd.read_csv('data/tracks_with_streams.csv')
-    # abt = create_abt(tracks, features, chroma_columns + tonnetz_columns + mel_columns)
-    # print(abt.shape)
-    # print(abt.head())
-    # abt.to_csv(f"data/mel_spec-tonnetz-chromagram.csv")
-
-    # download_sample(
-    #     "https://p.scdn.co/mp3-preview/95cb9df1b056d759920b5e85ad7f9aff0a390671?cid=b3cdb16d0df2409abf6a8f6c2f6c2e0c",
-    #     "The Scientist")
+    #download_samples(num_samples=9000)
 
     tracks = get_tracks_collection()
+
     pool = ThreadPool(8)
 
-    pool.map(calculate_and_store_melspec, tracks.find({"message": {"$ne": "no streams"}, 'melspec': {"$exists": False}})
-             .limit(900))
+    pool.map(calculate_and_store_melspec, tracks.find(
+        {"message": {"$ne": "no streams"} })
+             .limit(9000))
+
+    # pool.map(calculate_and_store_tonnetz, tracks.find(
+    #     {"message": {"$ne": "no streams"},
+    #      'tonnetz': {"$exists": False}
+    #      })
+    #          .limit(9000))
+
+    # y, sr = librosa.load(f"audio/0bc37e36-26e2-47f1-a600-06f48b94ea82.mp3")
+    #
+    # S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=2048,
+    #                                    fmax=8000)
+    #
+    # pickled_array = Binary(pickle.dumps(S, protocol=2), subtype=128)
+    #
+    # print(pickled_array)
+
+    print("done!")
 
 
 

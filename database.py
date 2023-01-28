@@ -6,7 +6,7 @@ from pymongo.database import Database
 client = None
 
 
-def connect_to_mongodb() -> Database[Mapping[str, Any] | Any]:
+def connect_to_mongodb(): # -> Database[Mapping[str, Any] | Any]:
     global client
     if not client:
         client = pymongo.MongoClient("mongodb://localhost:27017")

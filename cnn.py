@@ -1,33 +1,47 @@
 import pickle
 
 import bson
+import librosa.display
 import numpy as np
 import pandas as pd
 import pymongo
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.python.keras import layers
+from tensorflow.python.keras import layers, models
 from sklearn.model_selection import train_test_split
 
 from preprocessing import get_tracks_from_db
 
+gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+session = tf.compat.v1.InteractiveSession(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options))
 
-def build_and_compile_model(batch_size):
-
-    # normalization = tf.keras.layers.Normalization(axis=-1)
-    # normalization.adapt(train_features)
+def build_and_compile_model(batch_size, train_features):
+    normalization = tf.keras.layers.Normalization(axis=-1)
+    normalization.adapt(np.array(train_features))
 
     model = keras.Sequential([
-        #layers.InputLayer(input_shape=(batch_size, 128, 1292, 1)),
-        #normalization,
-        layers.Conv2D(32, (4, 4), activation='relu', kernel_initializer='he_uniform'),
-        layers.MaxPooling2D(),
-        layers.Dense(1)
+        layers.InputLayer(input_shape=(*features[feature]['shape'], 1)),
+        normalization,
+        layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_uniform'),
+        layers.MaxPooling2D(padding='same'),
+        layers.Conv2D(32, (3, 3), activation='relu'),
+        layers.MaxPooling2D(padding='same'),
+        layers.Conv2D(16, (3, 3), activation='relu'),
+        layers.MaxPooling2D(padding='same'),
+        layers.Conv2D(16, (3, 3), activation='relu'),
+        layers.Flatten(name='Flattening'),
+        layers.Dense(32),
+        layers.Dense(16),
+        layers.Dense(8),
+        layers.Dense(1, name='Prediction')
     ])
 
-    model.compile(loss='mae', optimizer=tf.keras.optimizers.Adam(0.001))
-    model.build(input_shape=(batch_size, 128, 1292, 1))
+    # model.compile(optimizer='adam',
+    #               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    #               metrics=['accuracy'])
+    model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(0.001))
+    model.build(input_shape=(batch_size, *features[feature]['shape'], 1))
     return model
 
 
@@ -54,11 +68,19 @@ def plot_loss(history, feature):
     plt.show()
 
 
+def reshape_feature(feat: np.array):
+    try:
+        return feat.reshape(*features[feature]['shape'], 1)
+    except Exception as e:
+        print(f"Could not reshape array of shape {feat.shape}")
+        print(e)
+
+
 def train_model(dataset, feature):
     train_dataset, test_dataset = train_test_split(dataset, test_size=0.2)
 
-    train_features = train_dataset['melspec']
-    test_features = test_dataset['melspec']
+    train_features = train_dataset[feature]
+    test_features = test_dataset[feature]
 
     train_targets = train_dataset.pop('streams')
     test_targets = test_dataset.pop('streams')
@@ -66,45 +88,28 @@ def train_model(dataset, feature):
     print_target_stats('training', train_targets)
     print_target_stats('test', test_targets)
 
-    BATCH_SIZE = 32
+    train_targets = train_targets.to_numpy()
+    test_targets = test_targets.to_numpy()
 
-    model = build_and_compile_model(BATCH_SIZE)
+    train_features = train_features.to_numpy() #.reshape(-1, 128, 1292, 1)
+    test_features = test_features.to_numpy() #.reshape(-1, 128, 1292, 1)
+
+    train_targets = train_targets.reshape(len(train_targets), 1) #[[a] for a in train_targets]
+    test_targets = test_targets.reshape(len(test_targets), 1) #[[a] for a in test_targets]
+
+    train_features = np.array([reshape_feature(a) for a in train_features])
+    test_features = np.array([reshape_feature(a) for a in test_features])
+
+    BATCH_SIZE = 4
+
+    model = build_and_compile_model(BATCH_SIZE, train_features)
 
     print(model.summary())
-
-    #try to predict first element of training data before model is trained
-
-    # train_features = train_features.reshape(1, 128, 1292, 1)
-    # test_features = test_features.reshape(1, 128, 1292, 1)
-
-    #print(model.predict(tensor))
-    print(model(train_features.iloc[0].reshape(1, 128, 1292, 1)))
-
-
-    train_features = train_features.to_numpy()
-
-    print(type(train_features))
-    print(type(train_features[0]))
-    print(type(train_features[0][0]))
-    print(type(train_features[0][0][0]))
-
-
-    test_features = test_features.to_numpy()
-
-
-    train_features = np.column_stack(train_features)
-    test_features = np.column_stack(test_features)
-
-
-    print(train_features)
-
-    # train_features.reshape(128, 1292, 1)
-    # test_features.reshape(128, 1292, 1)
 
     history = model.fit(
         train_features,
         train_targets,
-        epochs=10,
+        epochs=40,
         batch_size=BATCH_SIZE,
         verbose=0,
         validation_split=0.2)
@@ -114,34 +119,50 @@ def train_model(dataset, feature):
     hist = pd.DataFrame(history.history)
     hist['epoch'] = history.epoch
     print(hist.tail(20))
+    print()
 
     test_results = {}
     test_results['model'] = model.evaluate(
         test_features, test_targets, verbose=1)
 
     print(test_results['model'])
+    print()
 
     print(model.predict(train_features[:1]))
+    print(train_targets[:1])
 
 
 if __name__ == "__main__":
 
-    features = ['mel_spectrogram', 'mel_spec-tonnetz-chromagram']#, 'tonnetz', 'chromagram', ]
+    features = {
+        'tonnetz': {
+            'shape': (6, 323)
+        },
+        'melspec': {
+            'shape': (128, 323)
+        }
+    }
 
-    tracks = get_tracks_from_db().limit(1000)
-    #
-    # tracks_list = list(tracks)
-    #
-    # print(tracks_list[0])
-    #
-    # tracks_list = [pickle.loads(t['melspec']) for t in tracks_list]
+    feature = "melspec"
+
+    tracks = get_tracks_from_db(feature).limit(6000)
 
     df = pd.DataFrame(tracks)
 
-    df = df[['streams', 'melspec']]
+    df = df[['streams', feature]]
 
     df = df.dropna()
 
-    df['melspec'] = df['melspec'].map(lambda x: pickle.loads(x))
+    df['streams'] = pd.to_numeric(df['streams'], downcast='integer')
 
-    train_model(df, 'mel_spectrogram')
+    def unpack_array(pickled_array):
+        arr = pickle.loads(pickled_array)
+        if type(arr) == np.ndarray and arr.shape == features[feature]['shape']:
+            return arr
+        return np.nan
+
+    df[feature] = df[feature].map(unpack_array)
+
+    df.dropna(inplace=True)
+
+    train_model(df, feature)
