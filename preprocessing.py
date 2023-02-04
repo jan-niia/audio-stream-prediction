@@ -191,7 +191,7 @@ def collect_data_set_with_streams():
 
 def calculate_output_shape(sr, hop_length, feature: str, sample_length_in_seconds=30):
     num_values = math.ceil((sr * sample_length_in_seconds) / hop_length)
-    feature_column_map = dict(melspec=128, tonnetz=6)
+    feature_column_map = dict(melspec=128, tonnetz=6, chroma=12)
     return feature_column_map[feature], num_values
 
 
@@ -236,6 +236,26 @@ def calculate_and_store_tonnetz(track):
     except Exception as e:
         print(f"Could not load file {track.get('name')} with path {file_path} because {e}")
 
+def calculate_and_store_chroma(track):
+    hop_length = 2048
+    file_path = f"audio/{track.get('uuid')}.mp3"
+    print(file_path)
+    try:
+        y, sr = librosa.load(file_path)
+
+        S = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
+
+        if S.shape != calculate_output_shape(sr=sr, hop_length=hop_length, feature='chroma'):
+            print("Chroma output was not of correct size. Skipping track...")
+            print(calculate_output_shape(sr=sr, hop_length=hop_length, feature='chroma'))
+            return
+
+        pickled_array = Binary(pickle.dumps(S, protocol=2), subtype=128)
+
+        add_field_to_track(track.get("_id"), "chroma", pickled_array)
+    except Exception as e:
+        print(f"Could not load file {track.get('name')} with path {file_path} because {e}")
+
 
 def add_field_to_track(track_id, field_name, value):
     get_tracks_collection().update_one({'_id': track_id}, {"$set": {field_name: value}})
@@ -273,7 +293,7 @@ def get_tracks_from_db(feature: str):
 
 if __name__ == "__main__":
     feature_columns = {
-        'chromagram': chroma_columns,
+        'chroma': chroma_columns,
         'tonnetz': tonnetz_columns,
         'mel_spectrogram': mel_columns,
     }
@@ -284,15 +304,21 @@ if __name__ == "__main__":
 
     pool = ThreadPool(8)
 
-    pool.map(calculate_and_store_melspec, tracks.find(
-        {"message": {"$ne": "no streams"} })
-             .limit(9000))
+    # pool.map(calculate_and_store_melspec, tracks.find(
+    #     {"message": {"$ne": "no streams"} })
+    #          .limit(9000))
 
     # pool.map(calculate_and_store_tonnetz, tracks.find(
     #     {"message": {"$ne": "no streams"},
     #      'tonnetz': {"$exists": False}
     #      })
     #          .limit(9000))
+
+    pool.map(calculate_and_store_chroma, tracks.find(
+        {"message": {"$ne": "no streams"},
+         'chroma': {"$exists": False}
+         })
+             .limit(9000))
 
     # y, sr = librosa.load(f"audio/0bc37e36-26e2-47f1-a600-06f48b94ea82.mp3")
     #

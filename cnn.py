@@ -64,7 +64,6 @@ def plot_loss(history, feature):
     plt.grid(True)
 
     plt.title(f"Training on {feature}")
-
     plt.show()
 
 
@@ -140,6 +139,9 @@ if __name__ == "__main__":
         },
         'melspec': {
             'shape': (128, 323)
+        },
+        'chroma': {
+            'shape': (12, 323)
         }
     }
 
